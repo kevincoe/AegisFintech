@@ -1,0 +1,71 @@
+name: "CodeQL Security Analysis"
+
+on:
+  push:
+    branches: ["main"]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+  pull_request:
+    branches: ["main"]
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+  schedule:
+    # Runs every Friday at 07:19 UTC to scan against newly released CodeQL vulnerability definitions
+    - cron: "19 7 * * 5"
+  workflow_dispatch:
+
+# Default to zero permissions at the workflow level (Least Privilege)
+permissions: {}
+
+# Cancel redundant in-progress scans on the same PR/branch, but never cancel main branch scans
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: javascript-typescript
+            build-mode: none
+          - language: actions
+            build-mode: none
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
+          queries: security-extended
+          config: |
+            paths-ignore:
+              - "**/node_modules/**"
+              - "**/dist/**"
+              - "**/.turbo/**"
+              - "**/coverage/**"
+              - "**/*.test.ts"
+              - "**/*.spec.ts"
+              - "apps/api/tests/**"
+              - "apps/api/src/db/seed.ts"
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v4
+        with:
+          category: "/language:${{ matrix.language }}"
