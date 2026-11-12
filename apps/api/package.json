@@ -1,0 +1,32 @@
+{
+  "name": "@aegis/api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "node --import tsx src/server.ts",
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "db:push": "tsx src/db/migrate.ts",
+    "db:seed": "tsx src/db/seed.ts",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration"
+  },
+  "dependencies": {
+    "@aegis/shared": "*",
+    "@fastify/cookie": "^11.0.2",
+    "@fastify/cors": "^10.0.2",
+    "drizzle-orm": "^0.39.3",
+    "fastify": "^5.2.1",
+    "postgres": "^3.4.5",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.6"
+  }
+}
