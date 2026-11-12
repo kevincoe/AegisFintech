@@ -1,7 +1,7 @@
 # SPEC.md — Architectural Contract: Aegis FinTech Study Case
 
 ## 1. Consolidated Tech Stack
-- **Monorepo:** Native `npm workspaces` (`packages/shared`, `apps/api`, `apps/web`)
+- **Monorepo:** `Turborepo v2` + `npm workspaces` (`packages/shared`, `apps/api`, `apps/web`)
 - **Shared Contracts (`@aegis/shared`):** `TypeScript 5.8` + `Zod` schemas + Integer Cents (`BIGINT` / `number`) utilities
 - **Backend (`@aegis/api`):** `Node.js 24` + `Fastify 5` + `Drizzle ORM` + `PostgreSQL 17` + `Vitest`
 - **Frontend (`@aegis/web`):** `React 19` + `Vite 6` + `@tanstack/react-query` + `Tailwind CSS v4` + `lucide-react`
@@ -11,6 +11,7 @@
 studies/
 ├── AGENTS.md
 ├── SPEC.md
+├── turbo.json
 ├── docker-compose.yml
 ├── docs/adr/
 │   ├── 001-selective-complexity-and-vertical-slices.md

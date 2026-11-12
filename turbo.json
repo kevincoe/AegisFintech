@@ -1,0 +1,66 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "globalDependencies": [
+    "tsconfig.base.json"
+  ],
+  "tasks": {
+    "topo": {
+      "dependsOn": ["^topo"]
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": ["dist/**"]
+    },
+    "@aegis/shared#build": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "@aegis/api#build": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "typecheck": {
+      "dependsOn": ["topo"],
+      "outputs": []
+    },
+    "test:unit": {
+      "dependsOn": ["topo"],
+      "outputs": []
+    },
+    "test:integration": {
+      "cache": false,
+      "env": [
+        "NODE_ENV",
+        "PORT",
+        "DATABASE_URL",
+        "JWT_SECRET",
+        "CORS_ORIGIN",
+        "MARKET_TICK_INTERVAL_MS"
+      ]
+    },
+    "test": {
+      "cache": false,
+      "env": [
+        "NODE_ENV",
+        "PORT",
+        "DATABASE_URL",
+        "JWT_SECRET",
+        "CORS_ORIGIN",
+        "MARKET_TICK_INTERVAL_MS"
+      ]
+    },
+    "db:push": {
+      "cache": false,
+      "env": ["DATABASE_URL"]
+    },
+    "db:seed": {
+      "cache": false,
+      "env": ["DATABASE_URL"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

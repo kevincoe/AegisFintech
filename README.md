@@ -30,10 +30,12 @@ npm run db:up
 npm run db:push
 npm run db:seed
 
-# 4. Run Unit + Real PostgreSQL Integration & Concurrency Tests
+# 4. Run Turborepo typecheck, build, and Unit + Real PostgreSQL Integration Tests
+npm run typecheck
+npm run build
 npm test
 
-# 5. Start the API (port 3333) and Web UI (port 5173)
+# 5. Start the API (port 3333) and Web UI (port 5173) concurrently via Turborepo
 npm run dev
 ```
 

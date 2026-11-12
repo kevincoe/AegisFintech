@@ -3,23 +3,27 @@
   "version": "1.0.0",
   "private": true,
   "description": "Pragmatic Software Architecture & Engineering Study Case: Full-Stack Banking & Stock Market Platform",
+  "packageManager": "npm@11.12.1",
   "workspaces": [
     "packages/*",
     "apps/*"
   ],
   "scripts": {
-    "dev": "npm run dev --workspaces --if-present",
-    "dev:api": "npm --workspace @aegis/api run dev",
-    "dev:web": "npm --workspace @aegis/web run dev",
-    "build": "npm --workspace @aegis/shared run build && npm --workspace @aegis/api run build && npm --workspace @aegis/web run build",
-    "typecheck": "npm --workspace @aegis/shared run typecheck && npm --workspace @aegis/api run typecheck && npm --workspace @aegis/web run typecheck",
-    "test": "npm --workspace @aegis/api run test",
-    "test:unit": "npm --workspace @aegis/api run test:unit",
-    "test:integration": "npm --workspace @aegis/api run test:integration",
+    "dev": "turbo run dev",
+    "dev:api": "turbo run dev --filter=@aegis/api",
+    "dev:web": "turbo run dev --filter=@aegis/web",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "test:unit": "turbo run test:unit",
+    "test:integration": "turbo run test:integration",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
-    "db:push": "npm --workspace @aegis/api run db:push",
-    "db:seed": "npm --workspace @aegis/api run db:seed"
+    "db:push": "turbo run db:push",
+    "db:seed": "turbo run db:seed"
+  },
+  "devDependencies": {
+    "turbo": "^2.11.11"
   },
   "engines": {
     "node": ">=22.0.0"
