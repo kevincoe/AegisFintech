@@ -5,6 +5,7 @@ import {
   text,
   bigint,
   integer,
+  boolean,
   timestamp,
   jsonb,
   uniqueIndex,
@@ -193,7 +194,7 @@ export const tradeOrders = pgTable(
     totalGrossCents: bigint('total_gross_cents', { mode: 'number' }).notNull(),
     feeCents: bigint('fee_cents', { mode: 'number' }).notNull(),
     currency: varchar('currency', { length: 3 }).notNull(),
-    status: varchar('status', { length: 12 }).notNull(), // 'OPEN' | 'FILLED' | 'CANCELLED'
+    status: varchar('status', { length: 32 }).notNull(), // 'OPEN' | 'FILLED' | 'CANCELLED' | 'PENDING_COMPLIANCE_APPROVAL'
     ledgerTransactionId: uuid('ledger_transaction_id').references(() => ledgerTransactions.id),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     executedAt: timestamp('executed_at', { withTimezone: true }),
@@ -201,5 +202,256 @@ export const tradeOrders = pgTable(
   (table) => [
     index('trade_orders_user_idx').on(table.userId, table.createdAt),
     index('trade_orders_open_symbol_idx').on(table.status, table.symbol),
+  ]
+);
+
+// ============================================================================
+// 7. Households & Multi-Party Members (Salesforce FSC Party Model)
+// ============================================================================
+export const households = pgTable(
+  'households',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    name: varchar('name', { length: 120 }).notNull(),
+    taxIdentifier: varchar('tax_identifier', { length: 32 }),
+    notes: text('notes'),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index('households_name_idx').on(table.name)]
+);
+
+export const householdMembers = pgTable(
+  'household_members',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    householdId: uuid('household_id')
+      .notNull()
+      .references(() => households.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: varchar('role', { length: 32 }).notNull(), // 'HEAD_OF_HOUSEHOLD' | 'SPOUSE' | 'DEPENDENT' | 'BENEFICIARY'
+    isDecisionMaker: boolean('is_decision_maker').default(false).notNull(),
+    includeInRollup: boolean('include_in_rollup').default(true).notNull(),
+    joinedAt: timestamp('joined_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('household_user_unique_idx').on(table.householdId, table.userId),
+    index('household_members_user_idx').on(table.userId),
+  ]
+);
+
+// ============================================================================
+// 8. Party Role Relationships (Peer Links & UBO Graph)
+// ============================================================================
+export const partyRelationships = pgTable(
+  'party_relationships',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    sourceUserId: uuid('source_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    targetUserId: uuid('target_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    relationshipType: varchar('relationship_type', { length: 40 }).notNull(),
+    reciprocalType: varchar('reciprocal_type', { length: 40 }).notNull(),
+    ownershipPercentageBps: integer('ownership_percentage_bps').default(0).notNull(),
+    isUbo: boolean('is_ubo').default(false).notNull(),
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('party_rel_source_target_idx').on(
+      table.sourceUserId,
+      table.targetUserId,
+      table.relationshipType
+    ),
+    index('party_rel_target_idx').on(table.targetUserId),
+  ]
+);
+
+// ============================================================================
+// 9. Due Diligence: KYC Tiers & PEP Surveillance
+// ============================================================================
+export const kycProfiles = pgTable(
+  'kyc_profiles',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tier: varchar('tier', { length: 24 }).notNull().default('TIER_2_STANDARD'),
+    status: varchar('status', { length: 16 }).notNull().default('VERIFIED'),
+    isPep: boolean('is_pep').default(false).notNull(),
+    pepCategory: varchar('pep_category', { length: 32 }),
+    pepDescription: text('pep_description'),
+    dailyTransferLimitCents: bigint('daily_transfer_limit_cents', { mode: 'number' })
+      .notNull()
+      .default(5_000_000),
+    lastVerifiedAt: timestamp('last_verified_at', { withTimezone: true }).defaultNow().notNull(),
+    nextReviewDueAt: timestamp('next_review_due_at', { withTimezone: true }).notNull(),
+    verifiedBy: uuid('verified_by').references(() => users.id),
+  },
+  (table) => [uniqueIndex('kyc_user_unique_idx').on(table.userId)]
+);
+
+// ============================================================================
+// 10. Financial Account Roles (Multi-Party Joint & Fiduciary Ownership)
+// ============================================================================
+export const financialAccountRoles = pgTable(
+  'financial_account_roles',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    accountId: uuid('account_id')
+      .notNull()
+      .references(() => accounts.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    roleType: varchar('role_type', { length: 32 }).notNull(),
+    canTrade: boolean('can_trade').default(false).notNull(),
+    canWithdraw: boolean('can_withdraw').default(false).notNull(),
+    addedAt: timestamp('added_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex('financial_acc_role_unique_idx').on(table.accountId, table.userId, table.roleType),
+    index('financial_acc_role_user_idx').on(table.userId),
+  ]
+);
+
+// ============================================================================
+// 11. Investor Profiling & Suitability (FINRA 2111 / Reg BI / CVM 30)
+// ============================================================================
+export const suitabilityProfiles = pgTable(
+  'suitability_profiles',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    riskTier: varchar('risk_tier', { length: 24 }).notNull(),
+    score: integer('score').notNull(),
+    horizonMonths: integer('horizon_months').notNull(),
+    maxStockConcentrationBps: integer('max_stock_concentration_bps').notNull().default(2000),
+    maxSingleTradeCents: bigint('max_single_trade_cents', { mode: 'number' }).notNull(),
+    questionnaireAnswers: jsonb('questionnaire_answers').notNull(),
+    assessedAt: timestamp('assessed_at', { withTimezone: true }).defaultNow().notNull(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (table) => [index('suitability_user_expires_idx').on(table.userId, table.expiresAt)]
+);
+
+// ============================================================================
+// 12. Interaction Summaries & Life Events (Compliant Data Sharing)
+// ============================================================================
+export const interactionLogs = pgTable(
+  'interaction_logs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    clientId: uuid('client_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    advisorId: uuid('advisor_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    channel: varchar('channel', { length: 24 }).notNull(),
+    subject: varchar('subject', { length: 160 }).notNull(),
+    notes: text('notes').notNull(),
+    redactedNotes: text('redacted_notes'),
+    confidentialityLevel: varchar('confidentiality_level', { length: 20 })
+      .default('STANDARD')
+      .notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index('interaction_logs_client_idx').on(table.clientId, table.createdAt)]
+);
+
+export const personLifeEvents = pgTable(
+  'person_life_events',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    eventType: varchar('event_type', { length: 32 }).notNull(),
+    title: varchar('title', { length: 120 }).notNull(),
+    description: text('description'),
+    eventDate: timestamp('event_date', { withTimezone: true }).notNull(),
+    financialImpactCents: bigint('financial_impact_cents', { mode: 'number' })
+      .default(0)
+      .notNull(),
+    requiresSuitabilityReview: boolean('requires_suitability_review').default(false).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index('person_life_events_user_idx').on(table.userId, table.eventDate)]
+);
+
+// ============================================================================
+// 13. Trading Compliance: Restricted Lists, Overrides & SHA-256 Audit Log
+// ============================================================================
+export const restrictedSecurities = pgTable(
+  'restricted_securities',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    symbol: varchar('symbol', { length: 12 })
+      .notNull()
+      .references(() => assets.symbol, { onDelete: 'restrict' }),
+    restrictionType: varchar('restriction_type', { length: 24 }).notNull(),
+    reason: varchar('reason', { length: 40 }).notNull(),
+    notes: text('notes'),
+    effectiveFrom: timestamp('effective_from', { withTimezone: true }).notNull(),
+    effectiveTo: timestamp('effective_to', { withTimezone: true }).notNull(),
+    addedBy: uuid('added_by')
+      .notNull()
+      .references(() => users.id, { onDelete: 'restrict' }),
+    isActive: boolean('is_active').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index('restricted_symbol_active_idx').on(table.symbol, table.isActive)]
+);
+
+export const complianceOverrides = pgTable(
+  'compliance_overrides',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    orderId: uuid('order_id')
+      .notNull()
+      .references(() => tradeOrders.id, { onDelete: 'cascade' }),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    overrideType: varchar('override_type', { length: 32 }).notNull(),
+    status: varchar('status', { length: 16 }).notNull(),
+    riskViolationReason: text('risk_violation_reason').notNull(),
+    clientAttestationText: text('client_attestation_text'),
+    reviewerId: uuid('reviewer_id').references(() => users.id),
+    reviewerRationale: text('reviewer_rationale'),
+    reviewedAt: timestamp('reviewed_at', { withTimezone: true }),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('compliance_overrides_status_idx').on(table.status),
+    index('compliance_overrides_order_idx').on(table.orderId),
+  ]
+);
+
+export const complianceAuditLogs = pgTable(
+  'compliance_audit_logs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    eventType: varchar('event_type', { length: 48 }).notNull(),
+    userId: uuid('user_id').references(() => users.id),
+    operatorId: uuid('operator_id').references(() => users.id),
+    ruleEvaluated: varchar('rule_evaluated', { length: 80 }).notNull(),
+    decision: varchar('decision', { length: 16 }).notNull(),
+    payloadSnapshot: jsonb('payload_snapshot').notNull(),
+    recordHash: varchar('record_hash', { length: 64 }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index('compliance_audit_created_idx').on(table.createdAt),
+    index('compliance_audit_user_idx').on(table.userId),
   ]
 );

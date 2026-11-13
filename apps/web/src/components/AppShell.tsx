@@ -8,6 +8,7 @@ import {
   PiggyBank,
   Play,
   Send,
+  ShieldCheck,
   TrendingDown,
   TrendingUp,
   UserCheck,
@@ -211,6 +212,7 @@ export function AppShell({
             { id: 'savings', label: '3. Savings Vaults & CDB Yield', icon: PiggyBank },
             { id: 'fx', label: '4. Currency Exchange (FX Desk)', icon: Globe },
             { id: 'trading', label: '5. Stock Terminal & Order Book', icon: CandlestickChart },
+            { id: 'crm', label: '6. CRM & Compliance 360', icon: ShieldCheck },
           ].map((tab) => {
             const Icon = tab.icon;
             const active = activeSection === tab.id;

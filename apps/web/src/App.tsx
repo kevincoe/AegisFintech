@@ -6,6 +6,7 @@ import { AppShell } from './components/AppShell.js';
 import { EngineeringXRayDrawer } from './components/EngineeringXRayDrawer.js';
 import { ToastBanner } from './components/ToastBanner.js';
 import { AuthScreen } from './features/auth/AuthScreen.js';
+import { CrmWorkspaceView } from './features/crm/CrmWorkspaceView.js';
 import { DashboardView } from './features/dashboard/DashboardView.js';
 import { FxView } from './features/fx/FxView.js';
 import { SavingsView } from './features/savings/SavingsView.js';
@@ -14,6 +15,7 @@ import { TransfersView } from './features/transfers/TransfersView.js';
 import type {
   ActiveSection,
   CheckingAccount,
+  CrmOverviewResponse,
   DemoUser,
   FxPair,
   MarketAsset,
@@ -116,6 +118,12 @@ export function App() {
     enabled: isAuthenticated,
   });
 
+  const crmQuery = useQuery({
+    queryKey: ['crm-overview'],
+    queryFn: () => apiRequest<CrmOverviewResponse>('/api/crm/overview'),
+    enabled: isAuthenticated,
+  });
+
   const refreshAllFinancialData = () => {
     void Promise.all([
       queryClient.invalidateQueries({ queryKey: ['accounts-summary'] }),
@@ -123,6 +131,7 @@ export function App() {
       queryClient.invalidateQueries({ queryKey: ['savings-vaults'] }),
       queryClient.invalidateQueries({ queryKey: ['market-assets'] }),
       queryClient.invalidateQueries({ queryKey: ['trading-portfolio'] }),
+      queryClient.invalidateQueries({ queryKey: ['crm-overview'] }),
     ]);
   };
 
@@ -338,10 +347,26 @@ export function App() {
             checkingAccounts={checkingAccounts}
             holdings={portfolioQuery.data?.holdings ?? []}
             orders={portfolioQuery.data?.orders ?? []}
+            crmData={crmQuery.data}
             selectedSymbol={selectedSymbol}
             onSelectSymbol={setSelectedSymbol}
             liveHistoryBySymbol={liveHistoryBySymbol}
             onRefreshData={refreshAllFinancialData}
+            onNavigateCrm={() => setActiveSection('crm')}
+            onToast={showToast}
+          />
+        )}
+
+        {activeSection === 'crm' && (
+          <CrmWorkspaceView
+            crmData={crmQuery.data}
+            isLoading={crmQuery.isLoading}
+            assets={assets}
+            onRefreshData={refreshAllFinancialData}
+            onNavigateTrading={(symbol) => {
+              if (symbol) setSelectedSymbol(symbol);
+              setActiveSection('trading');
+            }}
             onToast={showToast}
           />
         )}

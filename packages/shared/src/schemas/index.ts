@@ -124,6 +124,8 @@ export const PlaceOrderInputSchema = z
     orderType: z.enum(ORDER_TYPES),
     quantity: z.number().int().min(1, 'Minimum 1 share').max(1_000_000),
     limitPriceCents: z.number().int().positive().optional(),
+    hasClientAttestation: z.boolean().optional().default(false),
+    attestationText: z.string().trim().max(500).optional(),
   })
   .refine(
     (data) => {
@@ -138,3 +140,122 @@ export const PlaceOrderInputSchema = z
     }
   );
 export type PlaceOrderInput = z.infer<typeof PlaceOrderInputSchema>;
+
+// ============================================================================
+// 6. CRM, Investor Suitability & Pre-Trade Compliance Schemas
+// ============================================================================
+export const KYC_TIERS = [
+  'TIER_0_UNVERIFIED',
+  'TIER_1_SIMPLIFIED',
+  'TIER_2_STANDARD',
+  'TIER_3_ENHANCED',
+] as const;
+export type KycTier = (typeof KYC_TIERS)[number];
+
+export const SUITABILITY_RISK_TIERS = [
+  'CONSERVATIVE',
+  'MODERATE',
+  'BALANCED_GROWTH',
+  'AGGRESSIVE_SPECULATIVE',
+] as const;
+export type SuitabilityRiskTier = (typeof SUITABILITY_RISK_TIERS)[number];
+
+export const UpdateKycProfileInputSchema = z.object({
+  tier: z.enum(KYC_TIERS),
+  isPep: z.boolean().default(false),
+  pepCategory: z
+    .enum(['HEAD_OF_STATE', 'SENIOR_GOV', 'JUDICIAL_MILITARY', 'FAMILY_MEMBER', 'CLOSE_ASSOCIATE'])
+    .optional()
+    .nullable(),
+  pepDescription: z.string().trim().max(240).optional().nullable(),
+});
+export type UpdateKycProfileInput = z.infer<typeof UpdateKycProfileInputSchema>;
+
+export const UpdateSuitabilityInputSchema = z.object({
+  investmentObjective: z.enum([
+    'CAPITAL_PRESERVATION',
+    'INCOME_GENERATION',
+    'BALANCED_GROWTH',
+    'AGGRESSIVE_SPECULATION',
+  ]),
+  horizonMonths: z.number().int().min(1).max(360),
+  liquidityNeed: z.enum(['HIGH_IMMEDIATE', 'MEDIUM_6_TO_12M', 'LOW_LONG_TERM']),
+  experienceLevel: z.enum(['NONE', 'BASIC_FIXED_INCOME', 'EQUITIES_AND_ETFS', 'DERIVATIVES_PRO']),
+  maxDrawdownTolerancePct: z.number().int().min(0).max(100),
+});
+export type UpdateSuitabilityInput = z.infer<typeof UpdateSuitabilityInputSchema>;
+
+export const INTERACTION_CHANNELS = ['PHONE', 'VIDEO', 'IN_PERSON', 'CHAT', 'EMAIL'] as const;
+export type InteractionChannel = (typeof INTERACTION_CHANNELS)[number];
+
+export const CONFIDENTIALITY_LEVELS = ['STANDARD', 'CONFIDENTIAL', 'RESTRICTED_MNPI'] as const;
+export type ConfidentialityLevel = (typeof CONFIDENTIALITY_LEVELS)[number];
+
+export const CreateInteractionLogInputSchema = z.object({
+  channel: z.enum(INTERACTION_CHANNELS),
+  subject: z.string().trim().min(3, 'Subject must be at least 3 characters').max(160),
+  notes: z.string().trim().min(5, 'Detailed notes are required').max(2000),
+  redactedNotes: z.string().trim().max(2000).optional(),
+  confidentialityLevel: z.enum(CONFIDENTIALITY_LEVELS).default('STANDARD'),
+});
+export type CreateInteractionLogInput = z.infer<typeof CreateInteractionLogInputSchema>;
+
+export const LIFE_EVENT_TYPES = [
+  'MARRIAGE',
+  'DIVORCE',
+  'CHILD_BIRTH',
+  'HOME_PURCHASE',
+  'CAREER_CHANGE',
+  'RETIREMENT',
+  'INHERITANCE',
+] as const;
+export type LifeEventType = (typeof LIFE_EVENT_TYPES)[number];
+
+export const CreateLifeEventInputSchema = z.object({
+  eventType: z.enum(LIFE_EVENT_TYPES),
+  title: z.string().trim().min(3).max(120),
+  description: z.string().trim().max(500).optional(),
+  eventDate: z.string().trim().min(4),
+  financialImpactCents: z.number().int().min(0).max(10_000_000_000).default(0),
+  requiresSuitabilityReview: z.boolean().default(false),
+});
+export type CreateLifeEventInput = z.infer<typeof CreateLifeEventInputSchema>;
+
+export const RESTRICTION_TYPES = [
+  'RESTRICTED_ALL',
+  'RESTRICTED_BUY_ONLY',
+  'RESTRICTED_SELL_ONLY',
+  'WATCH_LIST_ONLY',
+] as const;
+export type RestrictionType = (typeof RESTRICTION_TYPES)[number];
+
+export const RESTRICTION_REASONS = [
+  'MNPI_INSIDER',
+  'M_AND_A_ADVISORY',
+  'UNDERWRITING_BLACKOUT',
+  'SANCTION_REGULATORY',
+] as const;
+export type RestrictionReason = (typeof RESTRICTION_REASONS)[number];
+
+export const UpsertRestrictedSecurityInputSchema = z.object({
+  symbol: z
+    .string()
+    .trim()
+    .toUpperCase()
+    .regex(/^[A-Z0-9]{3,10}$/, 'Invalid ticker symbol'),
+  restrictionType: z.enum(RESTRICTION_TYPES).default('RESTRICTED_ALL'),
+  reason: z.enum(RESTRICTION_REASONS).default('M_AND_A_ADVISORY'),
+  notes: z.string().trim().max(300).optional(),
+  isActive: z.boolean(),
+});
+export type UpsertRestrictedSecurityInput = z.infer<typeof UpsertRestrictedSecurityInputSchema>;
+
+export const ResolveComplianceOverrideInputSchema = z.object({
+  action: z.enum(['APPROVE', 'REJECT']),
+  rationale: z
+    .string()
+    .trim()
+    .min(5, 'Supervisory rationale must be at least 5 characters')
+    .max(500),
+});
+export type ResolveComplianceOverrideInput = z.infer<typeof ResolveComplianceOverrideInputSchema>;

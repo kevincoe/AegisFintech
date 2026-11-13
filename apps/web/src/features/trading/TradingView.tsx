@@ -3,6 +3,8 @@ import {
   AlertTriangle,
   CandlestickChart,
   Clock,
+  Lock,
+  ShieldCheck,
   TrendingDown,
   TrendingUp,
 } from 'lucide-react';
@@ -17,6 +19,7 @@ import { apiRequest, generateIdempotencyKey } from '../../api/client.js';
 import { ConfirmationModal } from '../../components/ConfirmationModal.js';
 import type {
   CheckingAccount,
+  CrmOverviewResponse,
   DemoUser,
   MarketAsset,
   PortfolioHolding,
@@ -31,10 +34,12 @@ interface Props {
   checkingAccounts: CheckingAccount[];
   holdings: PortfolioHolding[];
   orders: PortfolioOrder[];
+  crmData?: CrmOverviewResponse;
   selectedSymbol: string;
   onSelectSymbol: (symbol: string) => void;
   liveHistoryBySymbol: Record<string, number[]>;
   onRefreshData: () => void;
+  onNavigateCrm?: () => void;
   onToast: (type: 'success' | 'error' | 'info', text: string) => void;
 }
 
@@ -44,16 +49,19 @@ export function TradingView({
   checkingAccounts,
   holdings,
   orders,
+  crmData,
   selectedSymbol,
   onSelectSymbol,
   liveHistoryBySymbol,
   onRefreshData,
+  onNavigateCrm,
   onToast,
 }: Props) {
   const [orderSide, setOrderSide] = useState<OrderSide>('BUY');
   const [orderType, setOrderType] = useState<OrderType>('MARKET');
   const [orderQty, setOrderQty] = useState('50');
   const [limitPriceStr, setLimitPriceStr] = useState('37.00');
+  const [hasClientAttestation, setHasClientAttestation] = useState(false);
 
   // Confirmation modal state
   const [orderModalOpen, setOrderModalOpen] = useState(false);
@@ -104,6 +112,55 @@ export function TradingView({
       availableCashCents > 0 &&
       totalCashRequiredCents > availableCashCents * 0.5;
 
+    // 5-Gate Pre-Trade Concentration & Suitability Preview
+    const maxConcentrationBps = crmData?.suitabilityProfile?.maxStockConcentrationBps ?? 2500;
+    const riskTier = crmData?.suitabilityProfile?.riskTier ?? 'BALANCED_GROWTH';
+    const kycTier = crmData?.kycProfile?.tier ?? 'TIER_2_STANDARD';
+    const isKycBlocked =
+      kycTier === 'TIER_0_UNVERIFIED' || kycTier === 'TIER_1_SIMPLIFIED';
+
+    // Total liquid net worth in asset currency (approximated using BRL checking/holdings)
+    const totalCashInBrl = checkingAccounts.reduce(
+      (sum, a) => sum + (a.balanceInBrlCents ?? a.balanceCents),
+      0
+    );
+    const totalHoldingsInBrl = holdings.reduce(
+      (sum, h) => sum + (h.currency === 'USD' ? h.marketValueCents * 5.8 : h.marketValueCents),
+      0
+    );
+    const liquidNetWorthInAssetCents =
+      selectedAsset.currency === 'USD'
+        ? Math.max(1, Math.round((totalCashInBrl + totalHoldingsInBrl) / 5.8))
+        : Math.max(1, Math.round(totalCashInBrl + totalHoldingsInBrl));
+
+    const existingHoldingCents =
+      (selectedHolding?.quantity ?? 0) * selectedAsset.currentPriceCents;
+    const pendingOrdersCents = orders
+      .filter(
+        (o) =>
+          o.symbol === selectedAsset.symbol &&
+          o.side === 'BUY' &&
+          (o.status === 'OPEN' || o.status === 'PENDING_COMPLIANCE_APPROVAL')
+      )
+      .reduce(
+        (sum, o) => sum + o.quantity * (o.limitPriceCents ?? selectedAsset.currentPriceCents),
+        0
+      );
+
+    const projectedCommitCents =
+      orderSide === 'BUY'
+        ? existingHoldingCents + pendingOrdersCents + grossCents
+        : existingHoldingCents;
+    const projectedConcentrationBps = Math.round(
+      (projectedCommitCents * 10000) / liquidNetWorthInAssetCents
+    );
+    const exceedsConcentrationCap =
+      orderSide === 'BUY' && projectedConcentrationBps > maxConcentrationBps;
+    const requiresVolatilityAttestation =
+      orderSide === 'BUY' &&
+      riskTier === 'CONSERVATIVE' &&
+      (selectedAsset.volatilityBps ?? 120) >= 135;
+
     return {
       qty,
       unitPriceCents,
@@ -113,8 +170,27 @@ export function TradingView({
       deviationPct,
       isFatFingerPrice,
       isHighAllocation,
+      maxConcentrationBps,
+      projectedConcentrationBps,
+      exceedsConcentrationCap,
+      requiresVolatilityAttestation,
+      riskTier,
+      kycTier,
+      isKycBlocked,
     };
-  }, [selectedAsset, orderQty, orderType, limitPriceStr, orderSide, settlementAccount]);
+  }, [
+    selectedAsset,
+    orderQty,
+    orderType,
+    limitPriceStr,
+    orderSide,
+    settlementAccount,
+    crmData,
+    checkingAccounts,
+    holdings,
+    selectedHolding,
+    orders,
+  ]);
 
   const handleApplyAllocationPreset = (fraction: number) => {
     if (!selectedAsset || !preTrade) return;
@@ -186,6 +262,10 @@ export function TradingView({
           orderType,
           quantity: preTrade.qty,
           limitPriceCents: orderType === 'LIMIT' ? preTrade.unitPriceCents : undefined,
+          hasClientAttestation,
+          attestationText: hasClientAttestation
+            ? `Client digitally signed Gate 3 Volatility Waiver for ${selectedAsset.symbol} on Order Ticket.`
+            : undefined,
         },
       });
       setOrderModalOpen(false);
@@ -194,6 +274,11 @@ export function TradingView({
         onToast(
           'success',
           `Order FILLED: ${res.order.side} ${res.order.quantity} ${res.order.symbol} @ ${formatCents(res.order.executedPriceCents ?? 0, res.order.currency)}`
+        );
+      } else if (res.order.status === 'PENDING_COMPLIANCE_APPROVAL') {
+        onToast(
+          'info',
+          `Gate 4 Concentration Hold: ${res.order.side} ${res.order.quantity} ${res.order.symbol} placed in Supervisory Compliance Queue with escrow reserved!`
         );
       } else {
         onToast(
@@ -296,7 +381,18 @@ export function TradingView({
                       }`}
                     >
                       <td className="py-3 pr-3">
-                        <div className="font-bold text-white">{asset.symbol}</div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-white">{asset.symbol}</span>
+                          {asset.isRestricted && (
+                            <span
+                              title={`Trading Blackout: ${asset.restrictionReason}`}
+                              className="inline-flex items-center gap-0.5 rounded bg-rose-500/20 border border-rose-500/40 px-1.5 py-0.5 text-[9px] font-bold text-rose-300"
+                            >
+                              <Lock className="h-2.5 w-2.5" aria-hidden="true" />
+                              RESTRICTED
+                            </span>
+                          )}
+                        </div>
                         <div className="font-sans text-[11px] text-slate-300">{asset.name}</div>
                       </td>
                       <td className="py-3 pr-3">
@@ -575,6 +671,95 @@ export function TradingView({
                 </div>
               </div>
 
+              {/* 5-Gate Pre-Trade Compliance & Concentration Guardrail Box */}
+              <div className="rounded-xl border border-slate-800 bg-slate-950 p-3 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-slate-200 flex items-center gap-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" aria-hidden="true" />
+                    5-Gate Pre-Trade Compliance
+                  </span>
+                  <span className="font-mono text-[10px] text-slate-300">
+                    Profile: <strong className="text-emerald-300">{preTrade.riskTier}</strong>
+                  </span>
+                </div>
+
+                {selectedAsset.isRestricted && (
+                  <div className="rounded-lg border border-rose-500/40 bg-rose-950/30 p-2 text-[11px] text-rose-200 flex items-center justify-between gap-2">
+                    <span>
+                      <strong>Gate 2 Blackout:</strong> {selectedAsset.symbol} is restricted (
+                      {selectedAsset.restrictionReason}).
+                    </span>
+                    {onNavigateCrm && (
+                      <button
+                        type="button"
+                        onClick={onNavigateCrm}
+                        className="shrink-0 underline text-rose-300 hover:text-white cursor-pointer"
+                      >
+                        Manage List
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {orderSide === 'BUY' && (
+                  <div className="space-y-1 font-mono tabular-nums">
+                    <div className="flex justify-between text-[11px]">
+                      <span className="font-sans text-slate-300">
+                        Gate 4 Projected Concentration:
+                      </span>
+                      <span
+                        className={`font-bold ${
+                          preTrade.exceedsConcentrationCap ? 'text-amber-300' : 'text-emerald-400'
+                        }`}
+                      >
+                        {(preTrade.projectedConcentrationBps / 100).toFixed(1)}% / Max{' '}
+                        {(preTrade.maxConcentrationBps / 100).toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full rounded-full bg-slate-800 overflow-hidden">
+                      <div
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            Math.round(
+                              (preTrade.projectedConcentrationBps /
+                                Math.max(1, preTrade.maxConcentrationBps)) *
+                                100
+                            )
+                          )}%`,
+                        }}
+                        className={`h-full transition-all ${
+                          preTrade.exceedsConcentrationCap ? 'bg-amber-400' : 'bg-emerald-400'
+                        }`}
+                      />
+                    </div>
+                    {preTrade.exceedsConcentrationCap && (
+                      <p className="font-sans text-[10px] text-amber-300 pt-0.5">
+                        Exceeds single-stock cap — order will reserve escrow in{' '}
+                        <code className="font-mono">PENDING_COMPLIANCE_APPROVAL</code> for
+                        Supervisory Sign-Off.
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {preTrade.requiresVolatilityAttestation && (
+                  <label className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-950/25 p-2 text-[11px] text-amber-200 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={hasClientAttestation}
+                      onChange={(e) => setHasClientAttestation(e.target.checked)}
+                      className="mt-0.5 rounded border-amber-500 bg-slate-950 text-emerald-500"
+                    />
+                    <span>
+                      <strong>Gate 3 Volatility Waiver:</strong> I attest that {selectedAsset.symbol}{' '}
+                      volatility ({((selectedAsset.volatilityBps ?? 140) / 100).toFixed(2)}%) exceeds
+                      my Conservative profile and accept unsolicited market risk.
+                    </span>
+                  </label>
+                )}
+              </div>
+
               <button
                 type="submit"
                 className={`w-full rounded-xl py-2.5 text-sm font-bold transition cursor-pointer ${
@@ -723,12 +908,23 @@ export function TradingView({
                         ? 'bg-emerald-500/15 text-emerald-400'
                         : ord.status === 'OPEN'
                           ? 'bg-amber-500/20 text-amber-300'
-                          : 'bg-slate-800 text-slate-400'
+                          : ord.status === 'PENDING_COMPLIANCE_APPROVAL'
+                            ? 'bg-sky-500/20 text-sky-300 border border-sky-500/40'
+                            : 'bg-slate-800 text-slate-400'
                     }`}
                   >
                     {ord.status}
                   </span>
-                  {ord.status === 'OPEN' && (
+                  {ord.status === 'PENDING_COMPLIANCE_APPROVAL' && onNavigateCrm && (
+                    <button
+                      type="button"
+                      onClick={onNavigateCrm}
+                      className="rounded bg-sky-500/20 border border-sky-500/40 px-2.5 py-0.5 text-[11px] font-semibold text-sky-300 hover:bg-sky-500/30 cursor-pointer"
+                    >
+                      Review in Compliance Desk →
+                    </button>
+                  )}
+                  {(ord.status === 'OPEN' || ord.status === 'PENDING_COMPLIANCE_APPROVAL') && (
                     <button
                       type="button"
                       onClick={() => handleCancelOrder(ord.id)}

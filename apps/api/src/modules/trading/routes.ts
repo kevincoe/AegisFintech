@@ -1,9 +1,16 @@
 import type { FastifyInstance } from 'fastify';
-import { and, asc, desc, eq, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, lte, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { PlaceOrderInputSchema, type CurrencyCode } from '@aegis/shared';
 import { db } from '../../db/index.js';
-import { accounts, assets, portfolios, tradeOrders } from '../../db/schema.js';
+import {
+  accounts,
+  assets,
+  complianceOverrides,
+  portfolios,
+  restrictedSecurities,
+  tradeOrders,
+} from '../../db/schema.js';
 import { AppError } from '../../core/errors.js';
 import { requireAuth } from '../../core/auth.js';
 import { executeIdempotent } from '../../core/idempotency.js';
@@ -20,23 +27,44 @@ import {
   subscribeToMarketStream,
 } from '../market/engine.js';
 import { getAllFxPairs } from '../fx/rates.js';
+import { evaluatePreTradeCompliance } from './compliance-engine.js';
 
 export async function tradingRoutes(app: FastifyInstance): Promise<void> {
   /**
    * GET /api/market/assets
-   * Returns all listed equities/ETFs with current price, day change %, high/low, and FX pairs.
+   * Returns all listed equities/ETFs with current price, day change %, high/low, active restrictions, and FX pairs.
    */
   app.get('/api/market/assets', async () => {
-    const rows = await db.select().from(assets).orderBy(asc(assets.symbol));
+    const now = new Date();
+    const [rows, activeRestrictions] = await Promise.all([
+      db.select().from(assets).orderBy(asc(assets.symbol)),
+      db
+        .select()
+        .from(restrictedSecurities)
+        .where(
+          and(
+            eq(restrictedSecurities.isActive, true),
+            lte(restrictedSecurities.effectiveFrom, now),
+            gte(restrictedSecurities.effectiveTo, now)
+          )
+        ),
+    ]);
+
+    const restrictionMap = new Map(activeRestrictions.map((r) => [r.symbol, r]));
+
     return {
       assets: rows.map((a) => {
         const changeCents = a.currentPriceCents - a.openPriceCents;
         const changePercent =
           a.openPriceCents > 0 ? Number(((changeCents / a.openPriceCents) * 100).toFixed(2)) : 0;
+        const restriction = restrictionMap.get(a.symbol);
         return {
           ...a,
           changeCents,
           changePercent,
+          isRestricted: Boolean(restriction && restriction.restrictionType !== 'WATCH_LIST_ONLY'),
+          restrictionType: restriction?.restrictionType ?? null,
+          restrictionReason: restriction?.reason ?? null,
           updatedAt: a.updatedAt.toISOString(),
         };
       }),
@@ -267,6 +295,126 @@ export async function tradingRoutes(app: FastifyInstance): Promise<void> {
         const grossCents = body.quantity * referencePriceCents;
         const feeCents = calculateBrokerageFee(grossCents);
 
+        // Acquire deterministic row-level lock on user's checking account to serialize concurrent orders
+        await tx.execute(sql`
+          SELECT id FROM accounts WHERE id = ${userChecking.id}::uuid FOR UPDATE
+        `);
+
+        // Execute 5-Gate Pre-Trade Compliance Pipeline (KYC Tier, Restricted List, Suitability, Concentration)
+        const compliance = await evaluatePreTradeCompliance(tx, {
+          userId,
+          symbol: asset.symbol,
+          side: body.side,
+          orderType: body.orderType,
+          quantity: body.quantity,
+          limitPriceCents: body.limitPriceCents,
+          grossCents,
+          feeCents,
+          hasClientAttestation: body.hasClientAttestation,
+          attestationText: body.attestationText,
+        });
+
+        if (compliance.status === 'REQUIRES_CLIENT_ATTESTATION') {
+          throw new AppError(
+            'SUITABILITY_ATTESTATION_REQUIRED',
+            compliance.reason ??
+              'This order exceeds your risk suitability profile and requires digital client attestation.',
+            422
+          );
+        }
+
+        // Gate 4 Hard Hold: Concentration limit exceeded -> Reserve Escrow & Queue for Compliance Officer Sign-Off
+        if (compliance.status === 'REQUIRES_COMPLIANCE_APPROVAL') {
+          if (body.side === 'BUY') {
+            const requiredEscrowCents = grossCents + feeCents;
+            const lockedRows = (await tx.execute(sql`
+              SELECT balance_cents, locked_balance_cents
+              FROM accounts
+              WHERE id = ${userChecking.id}::uuid
+              FOR UPDATE
+            `)) as unknown as Array<{ balance_cents: number; locked_balance_cents: number }>;
+
+            const row = lockedRows[0]!;
+            const availableCents = Number(row.balance_cents) - Number(row.locked_balance_cents);
+            if (availableCents < requiredEscrowCents) {
+              throw new AppError(
+                'INSUFFICIENT_FUNDS',
+                `Insufficient available funds to reserve compliance escrow (${(requiredEscrowCents / 100).toFixed(2)} ${currency}).`,
+                422
+              );
+            }
+
+            await tx.execute(sql`
+              UPDATE accounts
+              SET locked_balance_cents = locked_balance_cents + ${requiredEscrowCents}
+              WHERE id = ${userChecking.id}::uuid
+            `);
+          } else {
+            const [existingPos] = await tx
+              .select()
+              .from(portfolios)
+              .where(and(eq(portfolios.userId, userId), eq(portfolios.symbol, asset.symbol)))
+              .limit(1);
+
+            const availableShares =
+              (existingPos?.quantity ?? 0) - (existingPos?.lockedQuantity ?? 0);
+            if (!existingPos || availableShares < body.quantity) {
+              throw new AppError(
+                'INSUFFICIENT_SHARES',
+                `Insufficient available shares to reserve compliance escrow. Available: ${availableShares}.`,
+                422
+              );
+            }
+
+            await tx
+              .update(portfolios)
+              .set({
+                lockedQuantity: existingPos.lockedQuantity + body.quantity,
+                updatedAt: new Date(),
+              })
+              .where(eq(portfolios.id, existingPos.id));
+          }
+
+          const [heldOrder] = await tx
+            .insert(tradeOrders)
+            .values({
+              userId,
+              symbol: asset.symbol,
+              side: body.side,
+              orderType: body.orderType,
+              quantity: body.quantity,
+              limitPriceCents: body.limitPriceCents ?? null,
+              executedPriceCents: null,
+              totalGrossCents: grossCents,
+              feeCents,
+              currency,
+              status: 'PENDING_COMPLIANCE_APPROVAL',
+              ledgerTransactionId: null,
+              executedAt: null,
+            })
+            .returning();
+
+          await tx.insert(complianceOverrides).values({
+            orderId: heldOrder!.id,
+            userId,
+            overrideType: 'COMPLIANCE_OFFICER_APPROVAL',
+            status: 'PENDING',
+            riskViolationReason:
+              compliance.reason ?? 'Single-stock concentration limit exceeded.',
+            clientAttestationText: body.attestationText ?? null,
+          });
+
+          return {
+            order: {
+              ...heldOrder!,
+              createdAt: heldOrder!.createdAt.toISOString(),
+              executedAt: null,
+            },
+            compliance,
+            ledgerReceipt: null,
+          };
+        }
+
         if (isImmediateFill) {
           const clearingAccount = await getOrCreateSystemAccount(
             tx,
@@ -357,12 +505,28 @@ export async function tradingRoutes(app: FastifyInstance): Promise<void> {
               })
               .returning();
 
+            if (body.hasClientAttestation) {
+              await tx.insert(complianceOverrides).values({
+                orderId: order!.id,
+                userId,
+                overrideType: 'CLIENT_ATTESTATION',
+                status: 'APPROVED',
+                riskViolationReason:
+                  'Gate 3 Soft Override: Client attested to high-volatility equity risk.',
+                clientAttestationText:
+                  body.attestationText ??
+                  'Digital Client Risk Waiver signed on Order Entry Ticket.',
+                reviewedAt: new Date(),
+              });
+            }
+
             return {
               order: {
                 ...order!,
                 createdAt: order!.createdAt.toISOString(),
                 executedAt: order!.executedAt?.toISOString() ?? null,
               },
+              compliance,
               ledgerReceipt: receipt,
             };
           } else {
@@ -451,12 +615,28 @@ export async function tradingRoutes(app: FastifyInstance): Promise<void> {
               })
               .returning();
 
+            if (body.hasClientAttestation) {
+              await tx.insert(complianceOverrides).values({
+                orderId: order!.id,
+                userId,
+                overrideType: 'CLIENT_ATTESTATION',
+                status: 'APPROVED',
+                riskViolationReason:
+                  'Gate 3 Soft Override: Client attested to high-volatility equity risk.',
+                clientAttestationText:
+                  body.attestationText ??
+                  'Digital Client Risk Waiver signed on Order Entry Ticket.',
+                reviewedAt: new Date(),
+              });
+            }
+
             return {
               order: {
                 ...order!,
                 createdAt: order!.createdAt.toISOString(),
                 executedAt: order!.executedAt?.toISOString() ?? null,
               },
+              compliance,
               ledgerReceipt: receipt,
             };
           }
@@ -575,12 +755,23 @@ export async function tradingRoutes(app: FastifyInstance): Promise<void> {
           throw new AppError('NOT_FOUND', 'Trade order not found', 404);
         }
 
-        if (order.status !== 'OPEN') {
+        if (!inArray(tradeOrders.status, ['OPEN', 'PENDING_COMPLIANCE_APPROVAL']) || (order.status !== 'OPEN' && order.status !== 'PENDING_COMPLIANCE_APPROVAL')) {
           throw new AppError(
             'INVALID_ORDER_STATE',
             `Cannot cancel order in status "${order.status}".`,
             400
           );
+        }
+
+        if (order.status === 'PENDING_COMPLIANCE_APPROVAL') {
+          await tx
+            .update(complianceOverrides)
+            .set({
+              status: 'EXPIRED',
+              reviewerRationale: 'Order cancelled by client prior to compliance review.',
+              reviewedAt: new Date(),
+            })
+            .where(and(eq(complianceOverrides.orderId, order.id), eq(complianceOverrides.status, 'PENDING')));
         }
 
         if (order.side === 'BUY') {

@@ -1,12 +1,20 @@
 import type {
+  ConfidentialityLevel,
   CurrencyCode,
+  InteractionChannel,
+  KycTier,
+  LifeEventType,
   OrderSide,
   OrderType,
+  RestrictionReason,
+  RestrictionType,
   SavingsProductType,
+  SuitabilityRiskTier,
+  UpdateSuitabilityInput,
 } from '@aegis/shared';
 import type { LedgerEntryItem } from './api/client.js';
 
-export type ActiveSection = 'dashboard' | 'transfers' | 'savings' | 'fx' | 'trading';
+export type ActiveSection = 'dashboard' | 'transfers' | 'savings' | 'fx' | 'trading' | 'crm';
 
 export type SseConnectionStatus = 'CONNECTING' | 'CONNECTED' | 'PAUSED' | 'RECONNECTING';
 
@@ -79,8 +87,12 @@ export interface MarketAsset {
   openPriceCents: number;
   highPriceCents: number;
   lowPriceCents: number;
+  volatilityBps?: number;
   changeCents: number;
   changePercent: number;
+  isRestricted?: boolean;
+  restrictionType?: string | null;
+  restrictionReason?: string | null;
 }
 
 export interface FxPair {
@@ -120,6 +132,153 @@ export interface PortfolioOrder {
   totalGrossCents: number;
   feeCents: number;
   currency: CurrencyCode;
-  status: 'OPEN' | 'FILLED' | 'CANCELLED';
+  status: 'OPEN' | 'FILLED' | 'CANCELLED' | 'PENDING_COMPLIANCE_APPROVAL';
   createdAt: string;
+}
+
+export interface KycProfileItem {
+  id: string;
+  userId: string;
+  tier: KycTier;
+  status: string;
+  isPep: boolean;
+  pepCategory: string | null;
+  pepDescription: string | null;
+  dailyTransferLimitCents: number;
+  lastVerifiedAt: string;
+  nextReviewDueAt: string;
+}
+
+export interface SuitabilityProfileItem {
+  id: string;
+  userId: string;
+  riskTier: SuitabilityRiskTier;
+  score: number;
+  horizonMonths: number;
+  maxStockConcentrationBps: number;
+  maxSingleTradeCents: number;
+  questionnaireAnswers: UpdateSuitabilityInput;
+  assessedAt: string;
+  expiresAt: string;
+}
+
+export interface HouseholdOverview {
+  id: string;
+  name: string;
+  taxIdentifier: string | null;
+  notes: string | null;
+  consolidatedCashCents: number;
+  consolidatedLockedCashCents: number;
+  consolidatedEquityCents: number;
+  consolidatedNetWorthCents: number;
+  members: Array<{
+    userId: string;
+    name: string;
+    email: string;
+    role: string;
+    isDecisionMaker: boolean;
+    includeInRollup: boolean;
+  }>;
+  partyRelationships: Array<{
+    id: string;
+    sourceUserName: string;
+    targetUserName: string;
+    relationshipType: string;
+    reciprocalType: string;
+    ownershipPercentageBps: number;
+    isUbo: boolean;
+  }>;
+}
+
+export interface AccountRoleItem {
+  id: string;
+  accountId: string;
+  accountNumber: string;
+  currency: CurrencyCode;
+  accountLabel: string;
+  userName: string;
+  roleType: string;
+  canTrade: boolean;
+  canWithdraw: boolean;
+}
+
+export interface InteractionLogItem {
+  id: string;
+  channel: InteractionChannel;
+  subject: string;
+  notes: string;
+  redactedNotes: string | null;
+  confidentialityLevel: ConfidentialityLevel;
+  advisorName: string;
+  createdAt: string;
+}
+
+export interface LifeEventItem {
+  id: string;
+  eventType: LifeEventType;
+  title: string;
+  description: string | null;
+  eventDate: string;
+  financialImpactCents: number;
+  requiresSuitabilityReview: boolean;
+  createdAt: string;
+}
+
+export interface RestrictedSecurityItem {
+  id: string;
+  symbol: string;
+  restrictionType: RestrictionType;
+  reason: RestrictionReason;
+  notes: string | null;
+  effectiveFrom: string;
+  effectiveTo: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+export interface ComplianceOverrideItem {
+  id: string;
+  orderId: string;
+  userId: string;
+  clientName: string;
+  symbol: string;
+  side: OrderSide;
+  orderType: OrderType;
+  quantity: number;
+  limitPriceCents: number | null;
+  totalGrossCents: number;
+  feeCents: number;
+  currency: CurrencyCode;
+  orderStatus: string;
+  overrideType: string;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXPIRED';
+  riskViolationReason: string;
+  clientAttestationText: string | null;
+  reviewerRationale: string | null;
+  reviewedAt: string | null;
+  createdAt: string;
+}
+
+export interface ComplianceAuditLogItem {
+  id: string;
+  eventType: string;
+  userId: string | null;
+  operatorId: string | null;
+  ruleEvaluated: string;
+  decision: 'ALLOW' | 'BLOCK' | 'PENDING';
+  payloadSnapshot: Record<string, unknown>;
+  recordHash: string;
+  createdAt: string;
+}
+
+export interface CrmOverviewResponse {
+  kycProfile: KycProfileItem;
+  suitabilityProfile: SuitabilityProfileItem;
+  household: HouseholdOverview | null;
+  accountRoles: AccountRoleItem[];
+  interactions: InteractionLogItem[];
+  lifeEvents: LifeEventItem[];
+  restrictedSecurities: RestrictedSecurityItem[];
+  complianceOverrides: ComplianceOverrideItem[];
+  complianceAuditLogs: ComplianceAuditLogItem[];
 }

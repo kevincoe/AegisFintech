@@ -2,7 +2,13 @@ import type { FastifyInstance } from 'fastify';
 import { eq, asc } from 'drizzle-orm';
 import { LoginInputSchema, RegisterInputSchema } from '@aegis/shared';
 import { db, type DbTransaction } from '../../db/index.js';
-import { accounts, users } from '../../db/schema.js';
+import {
+  accounts,
+  financialAccountRoles,
+  kycProfiles,
+  suitabilityProfiles,
+  users,
+} from '../../db/schema.js';
 import { AppError } from '../../core/errors.js';
 import { hashPassword, requireAuth, signJwt, verifyPassword } from '../../core/auth.js';
 import { postLedgerTransaction } from '../../domain/ledger/post-ledger-transaction.js';
@@ -141,6 +147,48 @@ export async function createUserWithAccounts(
       metadata: { onboardingUserId: user.id },
     });
   }
+
+  // Provision default Salesforce FSC Party & Compliance records (KYC Tier 2 + Balanced Growth Suitability + Account Roles)
+  const oneYearFromNow = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+
+  await tx
+    .insert(kycProfiles)
+    .values({
+      userId: user.id,
+      tier: 'TIER_2_STANDARD',
+      status: 'VERIFIED',
+      isPep: false,
+      dailyTransferLimitCents: 5_000_000, // R$ 50.000,00 daily cap
+      nextReviewDueAt: oneYearFromNow,
+    })
+    .onConflictDoNothing({ target: kycProfiles.userId });
+
+  await tx.insert(suitabilityProfiles).values({
+    userId: user.id,
+    riskTier: 'BALANCED_GROWTH',
+    score: 68,
+    horizonMonths: 36,
+    maxStockConcentrationBps: 2500, // 25.00% max single-stock concentration
+    maxSingleTradeCents: 1_500_000, // R$ 15.000,00
+    questionnaireAnswers: {
+      investmentObjective: 'BALANCED_GROWTH',
+      horizonMonths: 36,
+      liquidityNeed: 'MEDIUM_6_TO_12M',
+      experienceLevel: 'EQUITIES_AND_ETFS',
+      maxDrawdownTolerancePct: 20,
+    },
+    expiresAt: oneYearFromNow,
+  });
+
+  await tx.insert(financialAccountRoles).values(
+    createdAccounts.map((acc) => ({
+      accountId: acc.id,
+      userId: user.id,
+      roleType: 'PRIMARY_OWNER',
+      canTrade: true,
+      canWithdraw: true,
+    }))
+  );
 
   return { user, accountNumber: prefix };
 }
