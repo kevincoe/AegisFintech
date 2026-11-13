@@ -1,1 +1,39 @@
 @import "tailwindcss";
+
+@layer base {
+  body {
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .font-mono,
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@keyframes pulse-emerald {
+  0% {
+    background-color: rgba(16, 185, 129, 0.28);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+@keyframes pulse-rose {
+  0% {
+    background-color: rgba(244, 63, 94, 0.28);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.flash-up {
+  animation: pulse-emerald 800ms ease-out;
+}
+
+.flash-down {
+  animation: pulse-rose 800ms ease-out;
+}

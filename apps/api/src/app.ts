@@ -9,6 +9,7 @@ import { transferRoutes } from './modules/transfers/routes.js';
 import { savingsRoutes } from './modules/savings/routes.js';
 import { fxRoutes } from './modules/fx/routes.js';
 import { tradingRoutes } from './modules/trading/routes.js';
+import { crmRoutes } from './modules/crm/routes.js';
 
 export async function buildApp(options?: { logger?: boolean }): Promise<FastifyInstance> {
   const app = Fastify({
@@ -39,6 +40,7 @@ export async function buildApp(options?: { logger?: boolean }): Promise<FastifyI
   await app.register(savingsRoutes);
   await app.register(fxRoutes);
   await app.register(tradingRoutes);
+  await app.register(crmRoutes);
 
   return app;
 }

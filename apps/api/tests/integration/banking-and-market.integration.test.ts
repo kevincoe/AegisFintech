@@ -354,7 +354,262 @@ describe('Aegis FinTech — Real PostgreSQL Integration & Concurrency Suite', ()
     expect(petr4Holding.quantity).toBe(30);
   });
 
-  it('8. Verifies the Global Double-Entry Zero-Sum Invariant across the entire PostgreSQL Ledger', async () => {
+  it('8. Enforces Salesforce FSC Client 360 Overview, Compliant Interaction Redaction, and Gate 1 KYC Tier Block', async () => {
+    // Fetch CRM Client 360 overview for Alpha
+    const overviewRes = await app.inject({
+      method: 'GET',
+      url: '/api/crm/overview',
+      headers: { authorization: `Bearer ${userAToken}` },
+    });
+    expect(overviewRes.statusCode).toBe(200);
+    expect(overviewRes.json().kycProfile.tier).toBe('TIER_2_STANDARD');
+
+    // Log a RESTRICTED_MNPI interaction note and verify automatic Chinese Wall redaction
+    const interactionRes = await app.inject({
+      method: 'POST',
+      url: '/api/crm/interactions',
+      headers: { authorization: `Bearer ${userAToken}` },
+      payload: {
+        channel: 'IN_PERSON',
+        subject: 'Confidential M&A Mandate Briefing',
+        notes: 'Sensitive board restructuring details for mining sector counterparty.',
+        confidentialityLevel: 'RESTRICTED_MNPI',
+      },
+    });
+    expect(interactionRes.statusCode).toBe(201);
+    expect(interactionRes.json().interaction.redactedNotes).toContain('REDACTED');
+
+    // Downgrade Alpha to TIER_1_SIMPLIFIED -> Gate 1 MUST block stock trading with 403
+    const kycDowngradeRes = await app.inject({
+      method: 'PUT',
+      url: '/api/crm/kyc',
+      headers: { authorization: `Bearer ${userAToken}` },
+      payload: {
+        tier: 'TIER_1_SIMPLIFIED',
+        isPep: true,
+        pepCategory: 'SENIOR_GOV',
+      },
+    });
+    expect(kycDowngradeRes.statusCode).toBe(200);
+
+    const blockedOrderRes = await app.inject({
+      method: 'POST',
+      url: '/api/trading/orders',
+      headers: {
+        authorization: `Bearer ${userAToken}`,
+        'idempotency-key': `kyc-block-${runSuffix}`,
+      },
+      payload: {
+        symbol: 'ITUB4',
+        side: 'BUY',
+        orderType: 'MARKET',
+        quantity: 1,
+      },
+    });
+    expect(blockedOrderRes.statusCode).toBe(403);
+    expect(blockedOrderRes.json().error.code).toBe('KYC_TIER_INSUFFICIENT');
+
+    // Upgrade Alpha to TIER_3_ENHANCED so subsequent trading gates can be evaluated
+    const kycUpgradeRes = await app.inject({
+      method: 'PUT',
+      url: '/api/crm/kyc',
+      headers: { authorization: `Bearer ${userAToken}` },
+      payload: {
+        tier: 'TIER_3_ENHANCED',
+        isPep: false,
+      },
+    });
+    expect(kycUpgradeRes.statusCode).toBe(200);
+  });
+
+  it('9. Enforces Gate 2 Restricted Securities Blackout (403) and Gate 3 Conservative Volatility Attestation (422 -> 201)', async () => {
+    // Ensure VALE3 is active on Restricted Securities List (Gate 2)
+    await app.inject({
+      method: 'POST',
+      url: '/api/compliance/restricted-securities',
+      headers: { authorization: `Bearer ${userAToken}` },
+      payload: {
+        symbol: 'VALE3',
+        restrictionType: 'RESTRICTED_ALL',
+        reason: 'M_AND_A_ADVISORY',
+        isActive: true,
+      },
+    });
+
+    // Attempting to BUY restricted VALE3 must be hard-blocked by Gate 2 with 403 RESTRICTED_SECURITY
+    const restrictedBuyRes = await app.inject({
+      method: 'POST',
+      url: '/api/trading/orders',
+      headers: {
+        authorization: `Bearer ${userAToken}`,
+        'idempotency-key': `restricted-vale3-${runSuffix}`,
+      },
+      payload: {
+        symbol: 'VALE3',
+        side: 'BUY',
+        orderType: 'MARKET',
+        quantity: 2,
+      },
+    });
+    expect(restrictedBuyRes.statusCode).toBe(403);
+    expect(restrictedBuyRes.json().error.code).toBe('RESTRICTED_SECURITY');
+
+    // Calibrate Beta (userBToken) to a CONSERVATIVE suitability profile (15% max concentration cap)
+    const suitRes = await app.inject({
+      method: 'PUT',
+      url: '/api/crm/suitability',
+      headers: { authorization: `Bearer ${userBToken}` },
+      payload: {
+        investmentObjective: 'CAPITAL_PRESERVATION',
+        horizonMonths: 12,
+        liquidityNeed: 'HIGH_IMMEDIATE',
+        experienceLevel: 'BASIC_FIXED_INCOME',
+        maxDrawdownTolerancePct: 5,
+      },
+    });
+    expect(suitRes.statusCode).toBe(200);
+    expect(suitRes.json().suitabilityProfile.riskTier).toBe('CONSERVATIVE');
+    expect(suitRes.json().suitabilityProfile.maxStockConcentrationBps).toBe(1500);
+
+    // Beta (CONSERVATIVE) attempts to buy high-volatility PETR4 (140 bps) WITHOUT client attestation -> 422
+    const unattestedRes = await app.inject({
+      method: 'POST',
+      url: '/api/trading/orders',
+      headers: {
+        authorization: `Bearer ${userBToken}`,
+        'idempotency-key': `gate3-unattested-${runSuffix}`,
+      },
+      payload: {
+        symbol: 'PETR4',
+        side: 'BUY',
+        orderType: 'MARKET',
+        quantity: 5,
+        hasClientAttestation: false,
+      },
+    });
+    expect(unattestedRes.statusCode).toBe(422);
+    expect(unattestedRes.json().error.code).toBe('SUITABILITY_ATTESTATION_REQUIRED');
+
+    // Beta resubmits with signed digital attestation (hasClientAttestation: true) -> 201 FILLED!
+    const attestedRes = await app.inject({
+      method: 'POST',
+      url: '/api/trading/orders',
+      headers: {
+        authorization: `Bearer ${userBToken}`,
+        'idempotency-key': `gate3-attested-${runSuffix}`,
+      },
+      payload: {
+        symbol: 'PETR4',
+        side: 'BUY',
+        orderType: 'MARKET',
+        quantity: 5,
+        hasClientAttestation: true,
+        attestationText: 'Client digitally accepted volatility waiver.',
+      },
+    });
+    expect(attestedRes.statusCode).toBe(201);
+    expect(attestedRes.json().order.status).toBe('FILLED');
+  });
+
+  it('10. Enforces Gate 4 Concentration Escrow Hold (PENDING_COMPLIANCE_APPROVAL) and Supervisory APPROVE / REJECT Settlement', async () => {
+    // Beta has ~R$ 46.000 BRL checking + USD/EUR (~R$ 60.000 liquid net worth) and a 15% (1500 bps) concentration cap.
+    // Buying 500 shares of ITUB4 @ R$ 34,80 = R$ 17.400,00 (> 28% concentration) breaches Gate 4!
+    const holdOrderRes = await app.inject({
+      method: 'POST',
+      url: '/api/trading/orders',
+      headers: {
+        authorization: `Bearer ${userBToken}`,
+        'idempotency-key': `gate4-hold-approve-${runSuffix}`,
+      },
+      payload: {
+        symbol: 'ITUB4',
+        side: 'BUY',
+        orderType: 'MARKET',
+        quantity: 500,
+      },
+    });
+    expect(holdOrderRes.statusCode).toBe(201);
+    const heldOrder = holdOrderRes.json().order;
+    expect(heldOrder.status).toBe('PENDING_COMPLIANCE_APPROVAL');
+
+    // Verify cash escrow is locked in Beta's BRL checking account while awaiting supervisory sign-off
+    const summaryDuringHold = await app.inject({
+      method: 'GET',
+      url: '/api/accounts/summary',
+      headers: { authorization: `Bearer ${userBToken}` },
+    });
+    const betaBrlDuringHold = summaryDuringHold
+      .json()
+      .checkingAccounts.find((a: { currency: string }) => a.currency === 'BRL');
+    expect(betaBrlDuringHold.lockedBalanceCents).toBeGreaterThanOrEqual(
+      heldOrder.totalGrossCents + heldOrder.feeCents
+    );
+
+    // Compliance Officer (Alpha) APPROVES the held order -> Escrow unlocks, Ledger settles, status becomes FILLED!
+    const approveRes = await app.inject({
+      method: 'POST',
+      url: `/api/compliance/overrides/${heldOrder.id}/resolve`,
+      headers: {
+        authorization: `Bearer ${userAToken}`,
+        'idempotency-key': `override-approve-${runSuffix}`,
+      },
+      payload: {
+        action: 'APPROVE',
+        rationale: 'Approved after reviewing consolidated household liquidity.',
+      },
+    });
+    expect(approveRes.statusCode).toBe(200);
+    expect(approveRes.json().orderStatus).toBe('FILLED');
+    expect(approveRes.json().overrideStatus).toBe('APPROVED');
+
+    // Place a second concentration-breaching order (200 ITUB4) and REJECT it -> Escrow must be released and status CANCELLED
+    const secondHoldRes = await app.inject({
+      method: 'POST',
+      url: '/api/trading/orders',
+      headers: {
+        authorization: `Bearer ${userBToken}`,
+        'idempotency-key': `gate4-hold-reject-${runSuffix}`,
+      },
+      payload: {
+        symbol: 'ITUB4',
+        side: 'BUY',
+        orderType: 'MARKET',
+        quantity: 200,
+      },
+    });
+    expect(secondHoldRes.statusCode).toBe(201);
+    const secondHeldOrder = secondHoldRes.json().order;
+    expect(secondHeldOrder.status).toBe('PENDING_COMPLIANCE_APPROVAL');
+
+    const rejectRes = await app.inject({
+      method: 'POST',
+      url: `/api/compliance/overrides/${secondHeldOrder.id}/resolve`,
+      headers: {
+        authorization: `Bearer ${userAToken}`,
+        'idempotency-key': `override-reject-${runSuffix}`,
+      },
+      payload: {
+        action: 'REJECT',
+        rationale: 'Rejected due to excessive single-issuer banking sector exposure.',
+      },
+    });
+    expect(rejectRes.statusCode).toBe(200);
+    expect(rejectRes.json().orderStatus).toBe('CANCELLED');
+    expect(rejectRes.json().overrideStatus).toBe('REJECTED');
+
+    // Verify Beta's locked escrow is now completely released (0 locked cents)
+    const summaryAfterReject = await app.inject({
+      method: 'GET',
+      url: '/api/accounts/summary',
+      headers: { authorization: `Bearer ${userBToken}` },
+    });
+    const betaBrlAfter = summaryAfterReject
+      .json()
+      .checkingAccounts.find((a: { currency: string }) => a.currency === 'BRL');
+    expect(betaBrlAfter.lockedBalanceCents).toBe(0);
+  });
+
+  it('11. Verifies the Global Double-Entry Zero-Sum Invariant and SEC 17a-4 Audit Hash Integrity across PostgreSQL', async () => {
     const rows = (await db.execute(sql`
       SELECT
         currency,
@@ -372,5 +627,12 @@ describe('Aegis FinTech — Real PostgreSQL Integration & Concurrency Suite', ()
     for (const row of rows) {
       expect(row.total_debits).toBe(row.total_credits);
     }
+
+    const auditCountRows = (await db.execute(sql`
+      SELECT COUNT(*)::int AS count
+      FROM compliance_audit_logs
+      WHERE length(record_hash) = 64
+    `)) as unknown as Array<{ count: number }>;
+    expect(Number(auditCountRows[0]?.count ?? 0)).toBeGreaterThanOrEqual(6);
   });
 });
