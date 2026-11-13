@@ -40,6 +40,7 @@ npm run dev
 ```
 
 ### Pre-Seeded Demo Accounts
+
 - **Alice Silva:** `alice@aegis.bank` / `password123` (Account `1001-1`)
 - **Bob Santos:** `bob@aegis.bank` / `password123` (Account `1002-9`)
 *(You can switch between Alice and Bob with a single click in the top navigation bar!)*

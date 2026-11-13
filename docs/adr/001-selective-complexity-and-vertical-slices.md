@@ -1,12 +1,15 @@
 # ADR-001: Pragmatic Vertical Slices + Rich Domain Core (Selective Complexity)
 
 ## Status
+
 Accepted
 
 ## Context
+
 Traditional enterprise tutorials often apply 6 layers of ceremony (`Controller -> UseCaseInterface -> UseCaseImpl -> DomainService -> RepositoryInterface -> RepositoryImpl -> ORMMapper -> Entity`) to every endpoint—even simple reads or CRUD operations. Conversely, naive CRUD apps put raw `UPDATE accounts SET balance = ...` queries directly inside route handlers without transactional invariants.
 
 ## Decision
+
 We adopt a **Pragmatic Modular Monolith** structured around two distinct zones defined in `AGENTS.md`:
 
 1. **Rich Domain Core (`apps/api/src/domain/`):**
@@ -18,5 +21,6 @@ We adopt a **Pragmatic Modular Monolith** structured around two distinct zones d
    - Write operations validate inputs with shared `Zod` schemas (`@aegis/shared`), enforce `Idempotency-Key`, and delegate balance mutations to `postLedgerTransaction` inside an ACID database transaction.
 
 ## Consequences
+
 - **Positive:** Zero boilerplate files; high readability; strict financial safety where bugs are expensive; fast onboarding.
 - **Trade-off:** Drizzle ORM is coupled to the service layer for read queries, which is deliberate because swapping PostgreSQL in a banking ledger is a theoretical rarity (YAGNI).

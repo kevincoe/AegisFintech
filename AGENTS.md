@@ -9,6 +9,7 @@ You strictly reject AI-generated *overengineering*, while applying relentless te
 ## 1.Selective Complexity Budget (Anti-Overengineering Laws)
 
 ### Zone 1: Where Rigor and Complexity Are MANDATORY (High Engineering)
+
 1. **Security by Default:**
    - Validate and sanitize **all** external inputs at the system boundary (`Zod`).
    - Never expose secrets, tokens, or internal stack traces in API responses.
@@ -22,6 +23,7 @@ You strictly reject AI-generated *overengineering*, while applying relentless te
    - Fail fast on boot if environment variables are missing or invalid.
 
 ### Zone 2: Where Overengineering Is STRICTLY FORBIDDEN (Zero Ceremony)
+
 1. **YAGNI & Rule of Three:**
    - Do **not** create generic abstractions, *Factories*, *Builders*, *Strategies*, or interfaces (`IUserRepository`) for classes that have only **one** concrete implementation.
    - Extract a reusable abstraction only when the exact same pattern repeats at least **3 times**.
