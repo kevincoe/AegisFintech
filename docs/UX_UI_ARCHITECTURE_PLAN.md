@@ -1,4 +1,5 @@
 # AegisFintech: Comprehensive Frontend Architectural Plan
+
 **Document Identifier:** `docs/UX_UI_ARCHITECTURE_PLAN.md`  
 **Classification:** Frontend Architecture, Feature Slicing & Engineering Blueprint  
 **Status:** Approved Architectural Specification  
@@ -13,6 +14,7 @@
 The AegisFintech web application must deliver an institutional-grade, high-density user experience matching the craft of modern leaders (Mercury, TradingView, Wise, Linear) while maintaining complete alignment with the project's engineering constitution in `AGENTS.md`.
 
 ### Core Engineering Invariants
+
 1. **Zero-Overengineering (Zone 2 Law):** No generic abstractions, no redundant repository wrappers, no intermediate mappers that simply clone DTOs, and zero heavy third-party UI libraries (no Radix, no Headless UI, no Recharts/Chart.js). All components rely purely on native HTML5 semantics, React 19 hooks, and Tailwind CSS v4.
 2. **Absolute Financial Integrity (Zone 1 Law):** All monetary values are processed and stored as integer cents (`BIGINT` or integer `number`). No floating-point arithmetic is permitted in financial calculations.
 3. **Pessimistic Double-Entry Alignment:** Because all backend balance mutations execute through atomic Double-Entry Ledger transactions (`sum(DEBITS) === sum(CREDITS)`) with sorted row-level pessimistic locks (`SELECT ... FOR UPDATE`), the frontend strictly avoids reckless optimistic balance updates that could display illusory liquidity to the user.
@@ -292,7 +294,9 @@ The state architecture is engineered to guarantee zero data divergence between R
 ```
 
 ### 4.1 TanStack Query v5 Cache Keys & Invalidation Policy
+
 All queries use explicit, immutable array keys:
+
 - `['auth-me']`: User profile, document number, checking account numbers.
 - `['accounts-summary']`: Consolidated net worth and per-currency liquidities (`staleTime: 5000`).
 - `['accounts-statement', { limit, offset, filter }]`: Filtered transaction ledger history.
@@ -301,8 +305,10 @@ All queries use explicit, immutable array keys:
 - `['trading-portfolio']`: Custody positions, Preço Médio, realized/unrealized P&L, recent orders.
 
 #### The Rejection of Optimistic Balance Updates
+
 In generic CRUD applications, optimistic updates improve perceived speed. In **Double-Entry Financial Systems**, optimistic updates are an architectural defect. If the frontend decrements `R$ 250,00` optimistically while PostgreSQL encounters a pessimistic row lock serialization failure or an insufficient funds barrier, the user perceives phantom debits and contradictory balances.
 *Architectural Policy:* All mutations (`useTransferMutation`, `useOrderMutation`, `useFxMutation`) execute strictly through pessimistic ledger confirmation. Upon HTTP 200/201 response, `refreshAllFinancialData()` invalidates all affected queries concurrently via `Promise.all`:
+
 ```typescript
 export const refreshAllFinancialData = (queryClient: QueryClient) => {
   return Promise.all([
@@ -437,7 +443,9 @@ export interface FxSwapCardProps {
 ## 6. Accessibility (WCAG 2.1 AA) Implementation Standards
 
 ### 6.1 Contrast Tokens
+
 All UI elements must satisfy strict contrast boundaries in accordance with WCAG 2.1 AA:
+
 - **Normal Text (Contrast $\ge$ 4.5:1):**
   - Primary text: `text-white` (`#ffffff` on `#020617` $\rightarrow$ 21:1).
   - Secondary metadata: `text-slate-400` (`#94a3b8` on `#020617` $\rightarrow$ 6.2:1) or `text-slate-300` (`#cbd5e1` on `#020617` $\rightarrow$ 9.8:1).
@@ -447,7 +455,9 @@ All UI elements must satisfy strict contrast boundaries in accordance with WCAG 
   - Active focus ring: `focus-visible:ring-2 focus-visible:ring-emerald-500` (8.3:1).
 
 ### 6.2 Dual-Encoding Utilities
+
 No state may be conveyed by color alone:
+
 ```tsx
 // Helper component for accessible financial deltas
 export function FinancialDeltaBadge({ cents, percent, currency }: Props) {
@@ -469,7 +479,9 @@ export function FinancialDeltaBadge({ cents, percent, currency }: Props) {
 ```
 
 ### 6.3 Focus Trapping & Keyboard Invariants
+
 All modal containers must bind an `onKeyDown` handler:
+
 ```typescript
 export const useDialogKeyboardTrap = (isOpen: boolean, onClose: () => void) => {
   useEffect(() => {
@@ -504,23 +516,31 @@ To ensure that the sliced architecture functions flawlessly and adheres strictly
 ```
 
 ### 7.1 Automated Validation Commands
+
 1. **Monorepo TypeScript Verification:**
+
    ```bash
    npm run typecheck
    ```
+
    Must pass across all workspaces (`@aegis/shared`, `@aegis/api`, `@aegis/web`) with zero errors.
 2. **Production Bundle Compilation:**
+
    ```bash
    npm run build
    ```
+
    Must compile the Vite frontend bundle and API TypeScript bundle with zero warnings or chunk resolution errors.
 3. **Domain Math & Concurrency Tests:**
+
    ```bash
    npm test
    ```
+
    Must verify that all backend ACID ledger tests, deadlock prevention tests, and integer currency formatting tests pass cleanly.
 
 ### 7.2 Constitution Checklist (`AGENTS.md`)
+
 - [x] **Zone 1: Security by Default:** Zod boundary validation on all inputs, anti-IDOR checks, zero exposed tokens.
 - [x] **Zone 1: Financial Invariants:** Integer minor units (`BIGINT` or integer cents), Double-Entry zero-sum balance mutations, deterministic row-level locks, single `Idempotency-Key` per lifecycle.
 - [x] **Zone 2: Anti-Overengineering (YAGNI):** No generic repositories, no mapper bloat, no intermediate DTO layers.

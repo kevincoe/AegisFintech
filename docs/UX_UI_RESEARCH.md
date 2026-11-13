@@ -1,4 +1,5 @@
 # AegisFintech: State-of-the-Art UX/UI Research & Benchmark Analysis
+
 **Document Identifier:** `docs/UX_UI_RESEARCH.md`  
 **Classification:** Research, Benchmark Analysis & Interaction Heuristics  
 **Status:** Approved Architectural Baseline  
@@ -43,6 +44,7 @@ This research document analyzes industry benchmarks across modern digital bankin
 ### 2.1 Modern Digital Banking Systems
 
 #### A. Mercury (The B2B & Treasury Gold Standard)
+
 - **Net Cash Verdict Row:** Mercury avoids fragmented metrics by anchoring the top of the interface with a single authoritative "Net Cash Verdict" in high-contrast tabular typography. It explicitly segregates immediately available operating cash from yielding treasury vaults and escrow-reserved funds.
 - **Liquidity Hierarchy Segmentation:** Capital is visually partitioned into three functional tiers:
   1. *Immediate Operational Liquidity:* Checking account funds with zero withdrawal latency.
@@ -51,15 +53,18 @@ This research document analyzes industry benchmarks across modern digital bankin
 - **Linear-Level Craftsmanship:** Mercury utilizes precise micro-interactions: sub-millisecond keyboard shortcuts, mono-spaced tabular numerals (`font-variant-numeric: tabular-nums`), high-density data tables without pagination bloat, and slide-over inspection drawers that maintain background scroll position.
 
 #### B. Revolut (The Multi-Currency & Consumer Pioneer)
+
 - **Multi-Currency Wallet Architecture:** Rather than sprawling three separate account cards across the viewport, Revolut presents a unified multi-currency wallet. A prominent active currency display is paired with interactive pill chips (`[🇧🇷 BRL]`, `[🇺🇸 USD]`, `[🇪🇺 EUR]`) allowing rapid currency switching.
 - **Contextual Action Anchors:** Primary actions (`Send`, `Add Money`, `Exchange`, `Details`) remain fixed directly below the active balance, ensuring the user's focus remains aligned with their active currency context.
 - **Safety Overlays:** Critical account numbers and sensitive tax IDs are masked by default (`•••• 8821`), revealing details only upon deliberate user interaction or biometric verification.
 
 #### C. Monzo (Frictionless Domestic Rails & Pre-Flight Feedback)
+
 - **Pre-Flight Identity Resolution:** Monzo treats recipient resolution as an asynchronous prerequisite to money movement. Typing a phone number, account number, or email immediately queries the central payment directory (Pay.UK / Confirmation of Payee), displaying the verified legal name of the counterparty before any funds are debited.
 - **Immediate Receipt Verification:** Upon transaction completion, Monzo delivers an interactive, downloadable digital receipt displaying the clearing network identifier, exact timestamp to the millisecond, and debit/credit ledger breakdown.
 
 #### D. Wise (The Transparent Fee Benchmark)
+
 - **"The Last Honest Moment" Paradigm:** Wise coined the interaction standard wherein every deduction, fee, tax, and exchange spread is explicitly laid bare before the final authorization click. No financial math is concealed behind "zero-fee" marketing facades.
 - **Radical Cost Transparency:** Itemizes transfer fees, intermediate correspondent fees, government levies (e.g. Brazilian IOF tax), and guaranteed delivery timelines.
 
@@ -68,16 +73,19 @@ This research document analyzes industry benchmarks across modern digital bankin
 ### 2.2 Stock Market Order Execution Systems
 
 #### A. TradingView (Visualization Craft & Lightweight Graphics)
+
 - **Interactive Candlestick Architecture:** TradingView represents the benchmark for charting financial instruments: high/low wicks, open/close rectangular bodies (emerald for upward candles, rose for downward candles), bottom-aligned volume histograms, and high-precision hover crosshairs.
 - **Timeframe Granularity:** Rapid switching between interval tabs (`1m`, `5m`, `15m`, `1h`, `1D`) without jarring layout shifts or full-page refreshes.
 - **Crosshair Hover Invariants:** Moving across the canvas projects instantaneous Cartesian coordinates onto both axes, displaying precise asset price on the Y-axis and timestamp on the X-axis.
 
 #### B. Robinhood (Retail Ergonomics & Buying Power Integration)
+
 - **Intraday 24h Range Micro-Sliders:** Robinhood condenses market context by displaying a compact horizontal progress slider showing the asset's current price positioned relative to its 24-hour low and 24-hour high.
 - **Tactile Buying Power Presets:** Order tickets eliminate manual mental arithmetic by supplying tactical percentage buttons (`25%`, `50%`, `75%`, `100%` of available purchasing power). Clicking `100%` computes the maximum integer shares purchasable, automatically factoring in brokerage fees.
 - **Slide-to-Confirm / Two-Tap Friction:** Irreversible market orders cannot be submitted by an inadvertent tap; users are required to execute a deliberate two-step review or vertical swipe gesture.
 
 #### C. Interactive Brokers (IBKR TWS & Portal - High-Density Level 2 Depth)
+
 - **Level 2 Market Depth (DOM Ladder):** IBKR provides professional market transparency through a continuous bid/ask ladder:
   - Top 5 Ask (Sell) tiers stacked in descending order.
   - Top 5 Bid (Buy) tiers stacked in ascending order.
@@ -86,10 +94,12 @@ This research document analyzes industry benchmarks across modern digital bankin
 - **Click-to-Trade Integration:** Clicking any price level in the depth ladder instantly populates the limit price field of the active order ticket.
 
 #### D. Bloomberg Web & Terminal (Tick Flashing & Information Hierarchy)
+
 - **Sub-Second Tick Flashing:** In active trading markets, numbers do not simply change; they flash. When an asset's price increases, the table cell or quote card flashes emerald green (`bg-emerald-500/20`) for 800ms before smoothly transitioning back to neutral slate. Downward ticks flash crimson rose (`bg-rose-500/20`). This directs visual attention immediately to market momentum.
 - **High Data Density:** Rows are compressed to 32px–36px heights with tabular monospace typography, displaying symbol, company name, currency, bid, ask, last, 24h delta, and volume without horizontal scrolling.
 
 #### E. Coinbase Advanced (Modern Crypto & Equities Hybrid)
+
 - **Connection Health State Pill:** Real-time financial applications must explicitly report WebSocket/SSE connection health. Coinbase displays a prominent pulsing badge: `Live` (green pulse), `Reconnecting` (amber spin), or `Stale/Disconnected` (red alert).
 - **Embedded Escrow Markers:** Active limit orders placed by the user are highlighted directly on the order book ladder with an unmistakable marker (`You: 100 shares 🔒`), indicating their position in the queue.
 
@@ -98,23 +108,27 @@ This research document analyzes industry benchmarks across modern digital bankin
 ### 2.3 Foreign Currency Exchange (FX Desk) Systems
 
 #### A. Wise & Revolut FX (Dual Synchronization & Interactive Calculators)
+
 - **Synchronized Dual-Input Calculator:** In modern FX, users think in two distinct modalities:
   1. *Source-Centric:* "I have R$ 5.000,00 to spend; how many US Dollars do I receive?"
   2. *Target-Centric:* "I need exactly US$ 1.000,00 to pay an invoice; how many Reais must I convert?"
 - **Single-Click Pair Inversion:** A tactile `[ ⇄ ]` button instantly flips source and target currencies, recalculating all spreads and inverted rates (`1 USD = 5.8000 BRL` becomes `1 BRL = 0.1724 USD`) without clearing user inputs.
 
 #### B. Guaranteed Quote Locking (Wise / OANDA Benchmark)
+
 - **The Stale Execution Threat:** Because foreign currency rates fluctuate continuously (in AegisFintech, the backend market engine nudges rates by up to ±20 bps every 2.5 seconds), executing an exchange against an uncommitted rate creates significant financial slippage.
 - **30-Second Rate Lock Window:** When a user requests a quote, the system locks that commercial rate and spread for exactly 30 seconds, indicated by a depleting linear or circular progress timer (`Expires in: 24s ▓▓▓▓▓▓▓▓░░`).
 - **State Transition to Requote:** If the countdown reaches zero, the action button immediately shifts from *"Review & Confirm"* to *"🔄 Rate Expired — Refresh Quote"*, blocking stale executions.
 
 #### C. Institutional Slippage Bounds (OANDA / FXCM Benchmark)
+
 - **Configurable Slippage Tolerance:** Professional FX desks allow users to establish maximum acceptable rate drift in basis points:
   - `Auto`: Default tight bound (10 bps).
   - `Custom`: User-defined bound (1 to 50 bps).
 - If the live execution rate at settlement exceeds this threshold, the transaction is rejected, and a requote confirmation is required.
 
 #### D. Brazilian BACEN VET Compliance (Banco Central do Brasil)
+
 - **VET (Valor Efetivo Total):** Brazilian financial regulations mandate that all foreign exchange transactions disclose the Total Effective Value per currency unit:
   $$\text{VET} = \frac{\text{Total Source Currency Expended (including fees and taxes)}}{\text{Net Foreign Currency Acquired}}$$
 - **Progressive Fee Disclosure:** The interface must explicitly itemize:
@@ -161,7 +175,9 @@ High-stakes financial systems cannot treat user errors as mere client-side valid
 ### 3.1 The Double-Debit Latching Failure Mode
 
 #### Root Cause Analysis in Existing Codebase
+
 In `apps/web/src/App.tsx:365-385`, the P2P transfer submission handler is implemented as follows:
+
 ```typescript
 const handleP2PTransfer = async (e: React.FormEvent) => {
   e.preventDefault();
@@ -185,7 +201,9 @@ const handleP2PTransfer = async (e: React.FormEvent) => {
   } catch (err) { ... }
 };
 ```
+
 Furthermore, the submit button is rendered without a disabled condition:
+
 ```tsx
 <button type="submit" className="...">
   Send Instant Transfer
@@ -193,6 +211,7 @@ Furthermore, the submit button is rendered without a disabled condition:
 ```
 
 #### The Concurrency Exploit
+
 1. A user enters `R$ 500,00` and clicks the submit button twice within 150 milliseconds (a common reflex on slow mobile networks or unresponsive devices).
 2. Click #1 executes `handleP2PTransfer`, generating key `pix-1731451200000-abc1`.
 3. Click #2 executes `handleP2PTransfer` concurrently, generating key `pix-1731451200150-def2`.
@@ -201,6 +220,7 @@ Furthermore, the submit button is rendered without a disabled condition:
 6. The user is debited `R$ 1.000,00` instead of `R$ 500,00`.
 
 #### The Architectural Solution: Latched State Machine
+
 1. **Single Key Generation per Review Lifecycle:** The `Idempotency-Key` must be generated when the user opens the confirmation drawer—*never* inside the execution click handler.
 2. **Synchronous Button Latching:** The moment the user clicks "Confirm & Send", the client synchronously sets `isSubmitting = true`. The button receives `disabled={isSubmitting}`, sets `aria-busy="true"`, renders an animated spinner (`RefreshCw className="animate-spin"`), and replaces the label with `"Authorizing Ledger Posting..."`.
 3. **Form Freeze:** All input fields are rendered `readOnly` or `disabled` until the mutation either settles or is explicitly dismissed.
@@ -210,10 +230,13 @@ Furthermore, the submit button is rendered without a disabled condition:
 ### 3.2 Asynchronous Pre-Flight Recipient Identity Resolution
 
 #### The Problem of Blind Transfers
+
 In the current implementation, a user enters an arbitrary string (`recipientInput = 'bob@aegis.bank'`) and submits. The backend attempts to find the recipient in `apps/api/src/modules/transfers/routes.ts:60-70`. If the user mistypes a single character (e.g. `bob1@aegis.bank`), the transfer either crashes with an unhelpful 404/422 error or, far worse, transfers money to an unintended registered user with no possibility of automated reversal.
 
 #### The Pre-Flight Interaction Pattern
+
 Borrowing from the Brazilian Pix DICT (Diretório de Identificadores de Contas Transacionais) and UK Confirmation of Payee standards:
+
 1. **Debounced Lookup (300ms):** As the user enters an email, CPF, or account number, a debounced query checks format and queries `GET /api/transfers/recipient-preview?identifier={input}&currency={currency}`.
 2. **Verified Payee Identity Card:** The UI transitions from empty to an unambiguous verification state:
    - Verified Legal Name in bold (e.g. `Roberto Santos`).
@@ -230,6 +253,7 @@ Borrowing from the Brazilian Pix DICT (Diretório de Identificadores de Contas T
 In stock market trading, typing errors ("fat-finger" errors) have historically triggered major market anomalies. AegisFintech introduces two distinct client-side guardrails:
 
 #### Guardrail 1: Out-of-Market Limit Deviation Warnings
+
 - **Trigger:** When placing a `LIMIT` order, the user's `limitPriceStr` is compared against `currentPriceCents`:
   - For `BUY` orders: $\text{Deviation} = \frac{\text{Limit Price} - \text{Market Price}}{\text{Market Price}} \times 100$
   - For `SELL` orders: $\text{Deviation} = \frac{\text{Market Price} - \text{Limit Price}}{\text{Market Price}} \times 100$
@@ -238,11 +262,14 @@ In stock market trading, typing errors ("fat-finger" errors) have historically t
 - **Red Barrier Threshold (> 20%):** If the limit price deviates by > 20%, the standard submit button is locked, requiring the user to explicitly tick a checkbox: `[x] I understand this order deviates significantly from market price`.
 
 #### Guardrail 2: Large Capital Concentration Warning
+
 - **Trigger:** If the estimated total required cash for a buy order exceeds **50% of the user's total available cash** in that currency:
   > ⚠️ **High Allocation Notice:** This trade commits **68.4%** of your total available BRL cash (`R$ 8.520,00` of `R$ 12.450,00`).
 
 #### Guardrail 3: Buying Power Percentage Presets
+
 Tactile percentage buttons (`25%`, `50%`, `75%`, `100%`) eliminate division mistakes:
+
 - For `BUY`:
   $$\text{Max Shares} = \left\lfloor \frac{\text{Available Cents} \times \text{Percent}}{\text{Price Cents} \times \left(1 + \frac{15}{10000}\right)} \right\rfloor$$
   where $\frac{15}{10000}$ accounts for the 15 bps brokerage fee.
@@ -254,6 +281,7 @@ Tactile percentage buttons (`25%`, `50%`, `75%`, `100%`) eliminate division mist
 ### 3.4 FX Guaranteed Quote Locking & Dynamic Slippage Bounds
 
 #### The 30-Second Quote State Machine
+
 To guarantee rate certainty while respecting the backend's continuous Brownian motion rate nudging, the FX Desk implements a client-side state machine:
 
 ```
@@ -301,11 +329,14 @@ The foundational principle of fintech UX is **"The Last Honest Moment"**: the in
 ```
 
 ### 4.1 Two-Step Review Drawers vs Disruptive Full-Page Modals
+
 - **Spatial Continuity:** Full-page redirects disorient users and break context. In contrast, accessible slide-over drawers (or centered non-disruptive dialogs with backdrop blur) maintain spatial awareness by preserving the user's view of the originating screen behind a dark overlay (`bg-slate-950/80 backdrop-blur-xs`).
 - **Focus Management:** Upon opening, keyboard focus is trapped within the drawer. Pressing `Escape` or clicking the backdrop dismisses the review without submitting.
 
 ### 4.2 Integer Minor-Unit Formatting Invariants
+
 Floating-point arithmetic in JavaScript (`0.1 + 0.2 === 0.30000000000000004`) is strictly forbidden in financial interfaces.
+
 - **In-Memory Representation:** All monetary values are transported and stored as integer cents (`BIGINT` or integer `number`).
 - **Display Representation:** Formatters must use localized minor units via `@aegis/shared`:
   - Brazilian Real: `formatCents(25000, 'BRL')` $\rightarrow$ `R$ 250,00`
@@ -314,7 +345,9 @@ Floating-point arithmetic in JavaScript (`0.1 + 0.2 === 0.30000000000000004`) is
 - **Decimal Parsing:** User inputs are parsed via `parseDecimalToCents(str)` using clean integer multiplication, completely eliminating floating-point rounding errors.
 
 ### 4.3 Side-by-Side Double-Entry Balance Preview
+
 Every confirmation drawer presents a dual-column ledger audit preview:
+
 - **Debit Side:** Sender Account Number, Currency, Exact Debit Amount (prefixed with `-`), and Resulting Balance After Debit.
 - **Credit Side:** Destination Account Number, Counterparty Name, Exact Credit Amount (prefixed with `+`), and Resulting Balance After Credit.
 - **Audit Verification:** Proves to the user that total debits equal total credits, reinforcing trust in the system's ledger integrity.
@@ -339,8 +372,10 @@ In accordance with `AGENTS.md` Zone 2 (Dependency Economy and Anti-Overengineeri
 ### 5.1 Native SVG Candlestick & Volume Micro-Chart
 
 #### Geometric Model
+
 A candlestick is defined by four core price points: Open ($O$), High ($H$), Low ($L$), and Close ($C$).
 Given an SVG canvas of width $W$ and height $H_{\text{chart}}$, and minimum price $P_{\min}$ and maximum price $P_{\max}$:
+
 1. **Vertical Coordinate Transform:**
    $$y(P) = H_{\text{chart}} - \left( \frac{P - P_{\min}}{P_{\max} - P_{\min}} \right) \times H_{\text{chart}}$$
 2. **Wick Geometry:** A 1-pixel vertical line spanning from $(x_{\text{center}}, y(H))$ to $(x_{\text{center}}, y(L))$.
@@ -351,6 +386,7 @@ Given an SVG canvas of width $W$ and height $H_{\text{chart}}$, and minimum pric
 5. **Volume Sub-Panel:** A bottom-aligned volume histogram occupying the lower 25% of the canvas height, where bar height is normalized to maximum trading volume.
 
 #### Zero-Bloat Candlestick SVG Implementation Pattern
+
 ```tsx
 export function NativeCandlestickChart({ candles, width = 600, height = 280 }: Props) {
   const minPrice = Math.min(...candles.map(c => c.lowCents));
@@ -399,7 +435,9 @@ export function NativeCandlestickChart({ candles, width = 600, height = 280 }: P
 ---
 
 ### 5.2 Native SVG Sparklines
+
 For high-density tables (watchlist rows, asset allocation summaries), a 60px $\times$ 20px inline sparkline provides instant historical trajectory without slowing DOM rendering.
+
 - Points are mapped to an SVG `<path d="M x0 y0 L x1 y1 ...">`.
 - Gradients are applied via `<linearGradient>` with subtle vertical fade, giving polish comparable to Linear and TradingView.
 
@@ -435,8 +473,11 @@ For high-density tables (watchlist rows, asset allocation summaries), a 60px $\t
 ---
 
 ### 5.4 Multi-Currency Liquidity Hierarchy & Asset Allocation Bar
+
 To solve the lack of visual liquidity categorization on the main dashboard, AegisFintech adopts a dual visualizer:
+
 1. **Asset Allocation Distribution Track:** A multi-colored segmented horizontal bar:
+
    ```tsx
    <div className="h-2 w-full flex rounded-full overflow-hidden bg-slate-800 mt-3" role="progressbar" aria-label="Asset Allocation">
      <div style={{ width: `${checkingPct}%` }} className="bg-emerald-400 transition-all duration-500" title={`Checking Cash: ${checkingPct}%`} />
@@ -444,6 +485,7 @@ To solve the lack of visual liquidity categorization on the main dashboard, Aegi
      <div style={{ width: `${stocksPct}%` }} className="bg-sky-400 transition-all duration-500" title={`Equities: ${stocksPct}%`} />
    </div>
    ```
+
 2. **Liquidity Hierarchy Metrics:**
    - *Operating Cash (Checking)*: Liquid funds available for immediate Pix and settlement.
    - *Near-Cash Yield (CDB Vaults)*: Earning 105% CDI daily yield, redeemable at T+0.
@@ -470,11 +512,13 @@ Financial interfaces carry a legal and ethical mandate to be accessible to all i
 ```
 
 ### 6.1 Color Independence & Dual-Encoding (WCAG 1.4.1)
+
 - **Violation in Traditional Fintech:** Indicating profit/loss or debit/credit solely through green (`#10b981`) and red (`#ef4444`) renders the interface unusable for the ~8% of males with red-green color blindness (deuteranopia / protanopia).
 - **Dual-Encoding Mandate:**
   1. *Directional Icons:* Every credit or upward price movement must pair color with an upward icon (`▲` or Lucide `TrendingUp`). Every debit or downward movement pairs with a downward icon (`▼` or Lucide `TrendingDown`).
   2. *Explicit Math Signs:* Positive changes require an explicit `+` prefix; negative changes require an explicit `-` prefix.
   3. *Screen-Reader Text:* Badges must inject off-screen screen-reader prefixes:
+
      ```tsx
      <span className="font-mono font-bold text-rose-400">
        <span className="sr-only">Debit outflow: </span>
@@ -483,13 +527,16 @@ Financial interfaces carry a legal and ethical mandate to be accessible to all i
      ```
 
 ### 6.2 Contrast Ratios & Semantic Color Tokens (WCAG 1.4.3 & 1.4.11)
+
 - **Contrast Remediation:** In dark mode interfaces, low-contrast slate text is a frequent failure point.
   - `text-slate-500` (`#64748b`) against `bg-slate-950` (`#020617`) produces a contrast ratio of **4.1:1**, failing WCAG AA (minimum 4.5:1).
   - Remediation: Replace all secondary body and meta text with `text-slate-400` (`#94a3b8`, **6.2:1**) or `text-slate-300` (`#cbd5e1`, **9.8:1**).
 - **Interactive Component Contrast:** Buttons, form input borders, and toggle indicators must maintain at least **3.0:1** contrast against adjacent backgrounds (WCAG 1.4.11).
 
 ### 6.3 Focus Trapping & Accessible Dialogs (WCAG 2.4.3 & 2.4.7)
+
 All modals and drawers (`ConfirmationModal`, `EngineeringXRayDrawer`) must satisfy:
+
 1. `role="dialog"` and `aria-modal="true"`.
 2. `aria-labelledby="dialog-title"` and `aria-describedby="dialog-description"`.
 3. **Focus Trapping:** When the modal mounts, focus moves to the primary action or close button. Pressing `Tab` cycles exclusively within the dialog.
@@ -499,6 +546,7 @@ All modals and drawers (`ConfirmationModal`, `EngineeringXRayDrawer`) must satis
    `focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950`.
 
 ### 6.4 Dynamic Updates & Throttled ARIA Live Regions (WCAG 2.2.2 & 4.1.3)
+
 - **The Screen-Reader Churn Hazard:** If real-time SSE market streams (arriving every 2.5s) trigger raw `aria-live="assertive"` announcements, screen-reader users are bombarded with continuous audio interruptions, rendering the system unusable.
 - **Throttled Polite Announcer:**
   - Market price ticks are filtered through a debounced, throttled polite announcer (`aria-live="polite"` with `aria-atomic="false"`).
